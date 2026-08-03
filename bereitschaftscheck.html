@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Kurzer Bereitschafts-Check (Entwurf)</title>
+<style>
+  :root{
+    --blue:#2563eb; --blue-dark:#1e40af; --green:#2e7d32; --red:#b00020;
+    --amber:#8a5a00; --amber-bg:#fff3e0; --gray:#6b7280; --bg:#f4f5f7;
+    --card:#ffffff; --border:#e2e4e8; --text:#1a1a1a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:var(--bg); color:var(--text); display:flex; justify-content:center;
+    padding:0 0 40px 0;
+  }
+  .app{ width:100%; max-width:480px; min-height:100vh; background:var(--card);
+    box-shadow:0 0 24px rgba(0,0,0,0.06); display:flex; flex-direction:column; }
+  header{ padding:16px 20px 12px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--card); z-index:5;}
+  header h1{ font-size:19px; margin:0 0 2px; }
+  header .sub{ font-size:13px; color:var(--gray); margin:0; }
+  .status{ display:inline-block; margin-top:8px; font-size:11.5px; font-weight:700; color:var(--red);
+    background:#fdecec; padding:3px 8px; border-radius:5px; }
+  .progress-track{ height:6px; background:var(--border); border-radius:3px; margin-top:12px; overflow:hidden;}
+  .progress-fill{ height:100%; background:var(--blue); border-radius:3px; transition:width .2s ease; }
+  main{ flex:1; padding:20px; }
+  .qhint{ font-size:13px; color:var(--gray); margin:-6px 0 14px; }
+  h2.qtitle{ font-size:17px; margin:0 0 4px; line-height:1.35; }
+  .req{ font-size:11px; color:var(--gray); font-weight:600; text-transform:uppercase; letter-spacing:.03em; margin-bottom:10px;}
+  .options{ display:flex; flex-direction:column; gap:10px; margin-top:6px;}
+  .opt-btn{
+    text-align:left; padding:14px 16px; font-size:15px; border-radius:12px;
+    border:2px solid var(--border); background:#fafafa; cursor:pointer; transition:.15s;
+  }
+  .opt-btn:active{ transform:scale(0.98); }
+  .opt-btn.selected{ border-color:var(--blue); background:#eaf1ff; font-weight:600; }
+  .scale-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin-top:8px;}
+  .scale-btn{ aspect-ratio:1; border-radius:10px; border:2px solid var(--border); background:#fafafa;
+    font-size:16px; font-weight:700; cursor:pointer; }
+  .scale-btn.selected{ border-color:var(--blue); background:var(--blue); color:#fff; }
+  .scale-caption{ display:flex; justify-content:space-between; font-size:11.5px; color:var(--gray); margin-top:8px;}
+  textarea, input[type=text], input[type=date]{
+    width:100%; padding:12px 14px; font-size:15px; border-radius:10px; border:2px solid var(--border);
+    font-family:inherit; margin-top:6px;
+  }
+  textarea{ min-height:80px; resize:vertical; }
+  .charcount{ font-size:11px; color:var(--gray); text-align:right; margin-top:4px;}
+  .warning-box{ margin-top:14px; padding:12px 14px; border:2px solid var(--red); background:#fdecec;
+    border-radius:10px; font-size:13.5px; color:var(--red); font-weight:600; }
+  .confidential-box{ margin-bottom:14px; padding:10px 12px; border-radius:10px; background:var(--amber-bg);
+    color:var(--amber); font-size:12.5px; font-weight:600; }
+  .field-row{ margin-bottom:16px; }
+  .field-row label{ display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:#333;}
+  footer{ padding:14px 20px 24px; border-top:1px solid var(--border); display:flex; gap:10px; position:sticky; bottom:0; background:var(--card);}
+  .btn{ flex:1; padding:14px; border-radius:12px; border:none; font-size:15px; font-weight:700; cursor:pointer; }
+  .btn-primary{ background:var(--blue); color:#fff; }
+  .btn-primary:disabled{ background:#c9d4e8; cursor:not-allowed; }
+  .btn-secondary{ background:#eee; color:#333; }
+  .summary-item{ padding:10px 0; border-bottom:1px solid var(--border); font-size:14px; }
+  .summary-q{ color:var(--gray); font-size:12px; margin-bottom:2px; }
+  .note-box{ margin-top:18px; padding:14px; border-radius:10px; background:#f0f4ff; font-size:13px; color:#333; }
+  .lock{ font-size:13px; }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>
+  emailjs.init({ publicKey: "u2K7dzzEvM0bp4pln" });
+</script>
+
+<script>
+const state = {
+  step: -1, // -1 = Startbildschirm, 0..n = Fragen, "summary" am Ende
+  meta: { datum: "", athletinId: "", checkTyp: "" },
+  answers: {}
+};
+
+const questions = [
+  { id:"plan_heute", type:"multi", other:true, required:true,
+    title:"Was steht heute voraussichtlich an?", hint:"Mehrfachauswahl möglich.",
+    options:["Ruhetag","Hallentraining / Handball","Krafttraining","Athletik / Schnelligkeit","Ausdauer / Lauftraining","Individuelles Handballtraining","Physio / Reha / Return-to-Sport","Spiel","Noch unklar","Sonstiges"] },
+  { id:"schlaf", type:"scale5", required:true, title:"Wie war dein Schlaf seit dem letzten Check?",
+    labels:["sehr gut","gut","mittel","schlecht","sehr schlecht"] },
+  { id:"erholung", type:"scale5", required:true, title:"Wie gut fühlst du dich aktuell erholt?",
+    labels:["vollständig erholt","gut erholt","teilweise erholt","kaum erholt","gar nicht erholt"] },
+  { id:"muedigkeit", type:"scale5", required:true, title:"Wie müde oder erschöpft fühlst du dich aktuell?",
+    labels:["gar nicht","leicht","mittel","stark","extrem"] },
+  { id:"muskelbeschwerden", type:"scale5", required:true, title:"Wie stark sind Muskelkater oder allgemeine Muskelbeschwerden aktuell?",
+    labels:["keine","leicht","mittel","stark","sehr stark"] },
+  { id:"stress", type:"scale5", required:true, title:"Wie belastet oder gestresst fühlst du dich aktuell?",
+    labels:["gar nicht","leicht","mittel","stark","extrem"] },
+  { id:"stimmung", type:"scale5", required:true, title:"Wie ist deine allgemeine Stimmung aktuell?",
+    labels:["sehr gut","gut","mittel","schlecht","sehr schlecht"] },
+  { id:"motivation", type:"scale5", required:true, title:"Wie motiviert fühlst du dich für das heutige Training oder Spiel?",
+    labels:["sehr motiviert","motiviert","mittel","wenig motiviert","gar nicht motiviert"] },
+  { id:"beschwerden_vorhanden", type:"single", required:true,
+    title:"Hast du aktuell gesundheitliche Beschwerden?",
+    hint:"Dazu zählen Schmerzen, Verletzungsbeschwerden, Krankheitssymptome oder andere Einschränkungen.",
+    options:["Nein","Ja","Unsicher"] },
+  { id:"beschwerdeart", type:"multi", required:true,
+    showIf: a => a.beschwerden_vorhanden==="Ja" || a.beschwerden_vorhanden==="Unsicher",
+    title:"Was beschreibt die Beschwerden am besten?", hint:"Mehrfachauswahl möglich.",
+    options:["Schmerz / Verletzung","Muskel / Sehne","Gelenk","Krankheitssymptome","Kopfschmerz / Schwindel","Magen-Darm","Zyklusbezogen","Andere","Unsicher"] },
+  { id:"beschwerderegion", type:"multi", required:true,
+    showIf: a => a.beschwerden_vorhanden==="Ja" || a.beschwerden_vorhanden==="Unsicher",
+    title:"Wo liegen die Beschwerden hauptsächlich?", hint:"Mehrfachauswahl möglich.",
+    options:["Kopf / Nacken","Schulter / Arm / Hand","Rücken / Rumpf","Hüfte / Leiste","Oberschenkel","Knie","Unterschenkel","Sprunggelenk / Fuß","ganzer Körper","andere / unklar"] },
+  { id:"beschwerdestaerke", type:"scale11", required:true,
+    showIf: a => a.beschwerden_vorhanden==="Ja" || a.beschwerden_vorhanden==="Unsicher",
+    title:"Wie stark sind die Beschwerden aktuell?", lowLabel:"keine Beschwerden", highLabel:"stärkste vorstellbare" },
+  { id:"teilnahmebeeinflussung", type:"single", required:true,
+    showIf: a => a.beschwerden_vorhanden==="Ja" || a.beschwerden_vorhanden==="Unsicher",
+    title:"Wie beeinflussen die Beschwerden deine Teilnahme?",
+    options:["gar nicht","leicht eingeschränkt","deutlich eingeschränkt","Teilnahme aktuell nicht möglich","noch unsicher"] },
+  { id:"beschwerdeverlauf", type:"single", required:true,
+    showIf: a => a.beschwerden_vorhanden==="Ja" || a.beschwerden_vorhanden==="Unsicher",
+    title:"Wie haben sich die Beschwerden seit dem letzten Check verändert?",
+    options:["neu aufgetreten","besser geworden","unverändert","schlechter geworden","kann ich nicht beurteilen"] },
+  { id:"kontaktwunsch", type:"single", required:true,
+    showIf: a => a.beschwerden_vorhanden==="Ja" || a.beschwerden_vorhanden==="Unsicher",
+    title:"Möchtest du deswegen persönlich kontaktiert werden?",
+    options:["Ja, möglichst zeitnah","Ja, beim nächsten regulären Termin","Nein","Unsicher"] },
+  { id:"akute_warnzeichen", type:"single", required:true, warning:true,
+    title:"Wichtiger Sicherheitshinweis — bitte immer beantworten",
+    hint:"Besteht aktuell eines dieser Warnzeichen: Brustschmerz, Atemnot in Ruhe, Ohnmacht, hohes Fieber oder eine andere akut bedrohlich wirkende Situation?",
+    options:["Nein","Ja","Unsicher"] },
+  { id:"zyklus", type:"single", required:false, confidential:true,
+    title:"Beeinflussen zyklusbezogene Beschwerden aktuell dein Training oder Wohlbefinden?",
+    hint:"Freiwillig. Wird nicht automatisch in einen Trainerbericht übernommen.",
+    options:["Nein","leicht","mittel","stark","möchte ich nicht beantworten"] },
+  { id:"zyklus_gespraech", type:"single", required:false, confidential:true,
+    title:"Möchtest du dazu ein vertrauliches Gespräch?",
+    options:["Ja","Nein","vielleicht später"] },
+  { id:"spielbereitschaft", type:"single", required:true,
+    showIf: a => state.meta.checkTyp === "freitag",
+    title:"Nur freitags: Wie schätzt du deine Teilnahme am kommenden Spiel aktuell ein?",
+    hint:"Das ist deine eigene Einschätzung, keine medizinische Freigabe.",
+    options:["vollständig möglich","möglich, aber eingeschränkt","noch unsicher","voraussichtlich nicht möglich","kein Spiel vorgesehen"] },
+  { id:"freitext", type:"text", required:false, maxLen:250,
+    title:"Möchtest du sonst noch etwas ergänzen?" }
+];
+
+function visibleQuestions(){
+  return questions.filter(q => !q.showIf || q.showIf(state.answers));
+}
+
+function isAnswered(q){
+  const v = state.answers[q.id];
+  if(!q.required) return true;
+  if(q.type==="multi") return Array.isArray(v) && v.length>0;
+  if(q.type==="text") return true;
+  return v !== undefined && v !== "" && v !== null;
+}
+
+function app(){ return document.getElementById("app"); }
+
+function renderStart(){
+  app().innerHTML = `
+    <header>
+      <h1>Kurzer Bereitschafts-Check</h1>
+      <p class="sub">Montag / Mittwoch / Freitag</p>
+      <span class="status">ENTWURF – TESTVERSION</span>
+    </header>
+    <main>
+      <p style="font-size:14px;line-height:1.5;">Bitte fülle diesen Check nach deinem aktuellen Gefühl aus. Es gibt keine richtigen oder falschen Antworten. Der reguläre Check dauert etwa 1–2 Minuten. Bei Beschwerden erscheinen ein paar Zusatzfragen.</p>
+      <div class="field-row">
+        <label>Datum</label>
+        <input type="date" id="f_datum">
+      </div>
+      <div class="field-row">
+        <label>Athletinnen-ID (einfach deine Nummer)</label>
+        <input type="text" id="f_id" placeholder="z. B. HSV 003">
+      </div>
+      <div class="field-row">
+        <label>Welcher Check ist das?</label>
+        <div class="options" id="f_checktyp">
+          ${["montag","mittwoch","freitag"].map(v=>`<button class="opt-btn" data-v="${v}">${v[0].toUpperCase()+v.slice(1)}</button>`).join("")}
+        </div>
+      </div>
+      <div class="note-box">Diese Version ist ein Entwurf zum Ausprobieren. Es werden noch keine echten Daten gespeichert oder verschickt.</div>
+    </main>
+    <footer>
+      <button class="btn btn-primary" id="startBtn" disabled>Los geht's</button>
+    </footer>
+  `;
+  document.getElementById("f_datum").addEventListener("input", e=>{ state.meta.datum = e.target.value; checkStart(); });
+  document.getElementById("f_id").addEventListener("input", e=>{ state.meta.athletinId = e.target.value; checkStart(); });
+  document.querySelectorAll("#f_checktyp .opt-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      state.meta.checkTyp = btn.dataset.v;
+      document.querySelectorAll("#f_checktyp .opt-btn").forEach(b=>b.classList.remove("selected"));
+      btn.classList.add("selected");
+      checkStart();
+    });
+  });
+  document.getElementById("startBtn").addEventListener("click", ()=>{ state.step = 0; render(); });
+}
+
+function checkStart(){
+  const ok = state.meta.datum && state.meta.athletinId && state.meta.checkTyp;
+  document.getElementById("startBtn").disabled = !ok;
+}
+
+function renderQuestion(){
+  const vis = visibleQuestions();
+  if(state.step >= vis.length){ state.step = "summary"; render(); return; }
+  const q = vis[state.step];
+  const progressPct = Math.round((state.step/vis.length)*100);
+
+  let bodyHtml = "";
+  if(q.confidential){
+    bodyHtml += `<div class="confidential-box">🔒 Vertraulich – freiwillig, nur intern sichtbar</div>`;
+  }
+  bodyHtml += `<h2 class="qtitle">${q.title}</h2>`;
+  if(q.hint) bodyHtml += `<p class="qhint">${q.hint}</p>`;
+  if(q.required) bodyHtml += `<div class="req">Pflichtfeld</div>`;
+
+  if(q.type==="single"){
+    bodyHtml += `<div class="options">` + q.options.map(o=>
+      `<button class="opt-btn ${state.answers[q.id]===o?'selected':''}" data-o="${encodeURIComponent(o)}">${o}</button>`
+    ).join("") + `</div>`;
+  } else if(q.type==="multi"){
+    const sel = state.answers[q.id] || [];
+    bodyHtml += `<div class="options">` + q.options.map(o=>
+      `<button class="opt-btn ${sel.includes(o)?'selected':''}" data-o="${encodeURIComponent(o)}">${o}</button>`
+    ).join("") + `</div>`;
+    if(q.other && sel.includes("Sonstiges")){
+      bodyHtml += `<input type="text" id="otherText" placeholder="Welche andere Einheit?" maxlength="50" style="margin-top:10px;" value="${state.answers[q.id+'_sonstiges']||''}">`;
+    }
+  } else if(q.type==="scale5"){
+    bodyHtml += `<div class="scale-grid">` + [0,1,2,3,4].map(n=>
+      `<button class="scale-btn ${state.answers[q.id]===n?'selected':''}" data-n="${n}">${n}</button>`
+    ).join("") + `</div>`;
+    bodyHtml += `<div class="scale-caption"><span>${q.labels[0]}</span><span>${q.labels[4]}</span></div>`;
+  } else if(q.type==="scale11"){
+    bodyHtml += `<div class="scale-grid">` + Array.from({length:11},(_,n)=>
+      `<button class="scale-btn ${state.answers[q.id]===n?'selected':''}" data-n="${n}">${n}</button>`
+    ).join("") + `</div>`;
+    bodyHtml += `<div class="scale-caption"><span>${q.lowLabel}</span><span>${q.highLabel}</span></div>`;
+  } else if(q.type==="text"){
+    const val = state.answers[q.id] || "";
+    bodyHtml += `<textarea id="freeText" maxlength="${q.maxLen}" placeholder="Optional …">${val}</textarea>`;
+    bodyHtml += `<div class="charcount" id="charcount">${val.length} / ${q.maxLen}</div>`;
+  }
+
+  if(q.warning){
+    bodyHtml += `<div class="warning-box" id="warnBox" style="display:none;">⚠ Bei „Ja“ oder einer akut bedrohlichen Situation: nicht auf die Auswertung warten. Sofort eine zuständige medizinische Person oder den Rettungsdienst kontaktieren. Dieser Fragebogen ersetzt keine medizinische Notfallversorgung.</div>`;
+  }
+
+  app().innerHTML = `
+    <header>
+      <h1>Kurzer Bereitschafts-Check</h1>
+      <p class="sub">Frage ${state.step+1} von ${vis.length}</p>
+      <div class="progress-track"><div class="progress-fill" style="width:${progressPct}%"></div></div>
+    </header>
+    <main>${bodyHtml}</main>
+    <footer>
+      <button class="btn btn-secondary" id="backBtn">Zurück</button>
+      <button class="btn btn-primary" id="nextBtn" ${isAnswered(q)?'':'disabled'}>Weiter</button>
+    </footer>
+  `;
+
+  if(q.type==="single"){
+    document.querySelectorAll(".opt-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        state.answers[q.id] = decodeURIComponent(btn.dataset.o);
+        if(q.warning && (state.answers[q.id]==="Ja" || state.answers[q.id]==="Unsicher")){
+          document.getElementById("warnBox").style.display = "block";
+        }
+        renderQuestion();
+      });
+    });
+  } else if(q.type==="multi"){
+    document.querySelectorAll(".opt-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const o = decodeURIComponent(btn.dataset.o);
+        const arr = state.answers[q.id] || [];
+        const idx = arr.indexOf(o);
+        if(idx>=0) arr.splice(idx,1); else arr.push(o);
+        state.answers[q.id] = arr;
+        renderQuestion();
+      });
+    });
+    const ot = document.getElementById("otherText");
+    if(ot) ot.addEventListener("input", e=>{ state.answers[q.id+"_sonstiges"] = e.target.value; });
+  } else if(q.type==="scale5" || q.type==="scale11"){
+    document.querySelectorAll(".scale-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        state.answers[q.id] = parseInt(btn.dataset.n,10);
+        renderQuestion();
+      });
+    });
+  } else if(q.type==="text"){
+    const ta = document.getElementById("freeText");
+    ta.addEventListener("input", e=>{
+      state.answers[q.id] = e.target.value;
+      document.getElementById("charcount").textContent = e.target.value.length + " / " + q.maxLen;
+    });
+  }
+
+  document.getElementById("backBtn").addEventListener("click", ()=>{
+    if(state.step===0){ state.step=-1; render(); } else { state.step--; render(); }
+  });
+  document.getElementById("nextBtn").addEventListener("click", ()=>{
+    if(!isAnswered(q)) return;
+    state.step++;
+    render();
+  });
+}
+
+function label(q){ return q.title.replace(/\s*—.*$/,""); }
+
+function escapeHtml(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function buildPlainText(){
+  const vis = visibleQuestions();
+  const lines = [];
+  lines.push("Bereitschafts-Check (" + state.meta.checkTyp + ")");
+  lines.push("Datum: " + state.meta.datum);
+  lines.push("Athletinnen-ID: " + state.meta.athletinId);
+  lines.push("");
+  vis.forEach(q=>{
+    let v = state.answers[q.id];
+    if(Array.isArray(v)) v = v.join(", ") + (state.answers[q.id+"_sonstiges"] ? " (" + state.answers[q.id+"_sonstiges"] + ")" : "");
+    if(v===undefined || v==="") v = "keine Angabe";
+    lines.push(label(q) + ": " + v);
+  });
+  return lines.join("\n");
+}
+
+function renderSummary(){
+  const vis = visibleQuestions();
+  let rows = `
+    <div class="summary-item"><div class="summary-q">Datum / ID / Check</div>${state.meta.datum} · ${state.meta.athletinId} · ${state.meta.checkTyp}</div>
+  `;
+  vis.forEach(q=>{
+    let v = state.answers[q.id];
+    if(Array.isArray(v)) v = v.join(", ") + (state.answers[q.id+"_sonstiges"] ? " (" + state.answers[q.id+"_sonstiges"] + ")" : "");
+    if(v===undefined || v==="") v = "– keine Angabe –";
+    rows += `<div class="summary-item"><div class="summary-q">${label(q)}</div>${v}</div>`;
+  });
+  const plainText = buildPlainText();
+  app().innerHTML = `
+    <header>
+      <h1>Zusammenfassung</h1>
+      <p class="sub">Bitte kurz prüfen</p>
+    </header>
+    <main>
+      ${rows}
+      <div class="note-box">Das ist eine Testversion. Diese Antworten wurden noch nirgends automatisch gespeichert oder verschickt.</div>
+      <div class="field-row" style="margin-top:16px;">
+        <label>Antworten als Text (zum Kopieren oder Senden)</label>
+        <textarea id="exportText" readonly style="min-height:180px;">${escapeHtml(plainText)}</textarea>
+      </div>
+      <button class="btn btn-primary" id="autoSendBtn" type="button" style="width:100%;margin-top:4px;">Jetzt automatisch senden</button>
+      <p id="sendStatus" style="font-size:13px;font-weight:600;margin-top:8px;min-height:18px;"></p>
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <button class="btn btn-secondary" id="copyBtn" type="button">Text kopieren</button>
+        <button class="btn btn-secondary" id="mailBtn" type="button">Manuell per Mail senden</button>
+      </div>
+      <p id="copyStatus" style="font-size:12px;color:var(--gray);margin-top:8px;"></p>
+    </main>
+    <footer>
+      <button class="btn btn-secondary" id="restartBtn">Neu beginnen</button>
+    </footer>
+  `;
+  document.getElementById("restartBtn").addEventListener("click", ()=>{
+    state.step=-1; state.meta={datum:"",athletinId:"",checkTyp:""}; state.answers={}; render();
+  });
+  document.getElementById("copyBtn").addEventListener("click", async ()=>{
+    const ta = document.getElementById("exportText");
+    ta.focus(); ta.select(); ta.setSelectionRange(0, 999999);
+    let ok = false;
+    try{ await navigator.clipboard.writeText(ta.value); ok = true; }
+    catch(e){ try{ ok = document.execCommand("copy"); }catch(e2){ ok = false; } }
+    document.getElementById("copyStatus").textContent = ok
+      ? "Kopiert! Du kannst den Text jetzt z. B. in eine Notiz, WhatsApp oder OneDrive einfügen."
+      : "Kopieren hat nicht automatisch geklappt – bitte den Text oben von Hand markieren und kopieren.";
+  });
+  document.getElementById("autoSendBtn").addEventListener("click", ()=>{
+    const btn = document.getElementById("autoSendBtn");
+    const statusEl = document.getElementById("sendStatus");
+    const subject = "Bereitschafts-Check " + state.meta.checkTyp + " – " + state.meta.athletinId;
+    const message = escapeHtml(plainText).replace(/\n/g, "<br>");
+    btn.disabled = true;
+    btn.textContent = "Wird gesendet …";
+    statusEl.style.color = "var(--gray)";
+    statusEl.textContent = "";
+    emailjs.send("service_cx4ksx5", "template_xn5hexf", { subject: subject, message: message })
+      .then(()=>{
+        statusEl.style.color = "var(--green)";
+        statusEl.textContent = "✓ Gesendet! Der Check ist angekommen.";
+        btn.textContent = "Erneut senden";
+        btn.disabled = false;
+      })
+      .catch(()=>{
+        statusEl.style.color = "var(--red)";
+        statusEl.textContent = "Senden hat nicht geklappt (z. B. kein Internet). Bitte Text kopieren oder manuell per Mail senden.";
+        btn.textContent = "Jetzt automatisch senden";
+        btn.disabled = false;
+      });
+  });
+  document.getElementById("mailBtn").addEventListener("click", ()=>{
+    const subject = encodeURIComponent("Bereitschafts-Check " + state.meta.checkTyp + " – " + state.meta.athletinId);
+    const body = encodeURIComponent(plainText);
+    window.location.href = "mailto:og.hsvlegenden@gmail.com?subject=" + subject + "&body=" + body;
+  });
+}
+
+function render(){
+  if(state.step === -1) renderStart();
+  else if(state.step === "summary") renderSummary();
+  else renderQuestion();
+}
+
+render();
+</script>
+</body>
+</html>
