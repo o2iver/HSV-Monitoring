@@ -388,7 +388,7 @@ function renderSummary(){
     const btn = document.getElementById("autoSendBtn");
     const statusEl = document.getElementById("sendStatus");
     const subject = "Bereitschafts-Check " + state.meta.checkTyp + " – " + state.meta.athletinId;
-    const message = escapeHtml(plainText).replace(/\n/g, "<br>");
+    const message = plainText;
     btn.disabled = true;
     btn.textContent = "Wird gesendet …";
     statusEl.style.color = "var(--gray)";
