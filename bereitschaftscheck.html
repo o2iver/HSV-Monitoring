@@ -160,7 +160,7 @@ const questions = [
 ];
 
 function fullAthletinId(){
-  const raw = (state.meta.athletinId || "").trim().replace(/^HSV\s*/i, "");
+  const raw = (state.meta.athletinId || "").trim().replace(/^ATH-?/i, "").replace(/^HSV[\s-]*/i, "");
   return "HSV " + raw;
 }
 
@@ -189,7 +189,6 @@ function renderStart(){
     <header>
       <h1>Kurzer Bereitschafts-Check</h1>
       <p class="sub">Montag / Mittwoch / Freitag</p>
-      <span class="status">ENTWURF – TESTVERSION</span>
     </header>
     <main>
       <p style="font-size:14px;line-height:1.5;">Bitte fülle diesen Check nach deinem aktuellen Gefühl aus. Es gibt keine richtigen oder falschen Antworten. Der reguläre Check dauert etwa 1–2 Minuten. Bei Beschwerden erscheinen ein paar Zusatzfragen.</p>
@@ -207,7 +206,7 @@ function renderStart(){
           ${["montag","mittwoch","freitag"].map(v=>`<button class="opt-btn" data-v="${v}">${v[0].toUpperCase()+v.slice(1)}</button>`).join("")}
         </div>
       </div>
-      <div class="note-box">Diese Version ist ein Entwurf zum Ausprobieren. Es werden noch keine echten Daten gespeichert oder verschickt.</div>
+      <div class="note-box">Deine Antworten werden direkt und vertraulich an Olli übermittelt.</div>
     </main>
     <footer>
       <button class="btn btn-primary" id="startBtn" disabled>Los geht's</button>
@@ -396,6 +395,25 @@ function escapeHtml(s){
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
+function buildMachineRecord(){
+  const rawId = (state.meta.athletinId || "").trim();
+  const isTest = /test/i.test(rawId);
+  const rec = {
+    datenart: isTest ? "technischer_test" : "echtdaten",
+    record_id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ("rid_" + Date.now() + "_" + Math.random().toString(36).slice(2)),
+    athletin_id: fullAthletinId(),
+    erfasst_am: new Date().toISOString(),
+    check_typ: state.meta.checkTyp,
+    datum: state.meta.datum,
+    fragebogen_version: "KURZ-MWF-0.4",
+    pruefstatus: "neu"
+  };
+  questions.forEach(q=>{
+    if(state.answers[q.id] !== undefined) rec[q.id] = state.answers[q.id];
+  });
+  return rec;
+}
+
 function buildPlainText(){
   const vis = visibleQuestions();
   const lines = [];
@@ -421,6 +439,9 @@ function buildPlainText(){
     if(v===undefined || v==="") v = "keine Angabe";
     lines.push(label(q) + ": " + v);
   });
+  lines.push("");
+  lines.push("--- Maschinenlesbar (JSON, für automatische Auswertung, bitte nicht von Hand bearbeiten) ---");
+  lines.push(JSON.stringify(buildMachineRecord()));
   return lines.join("\n");
 }
 

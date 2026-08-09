@@ -129,7 +129,7 @@ const questions = [
 ];
 
 function fullAthletinId(){
-  const raw = (state.meta.athletinId || "").trim().replace(/^HSV\s*/i, "");
+  const raw = (state.meta.athletinId || "").trim().replace(/^ATH-?/i, "").replace(/^HSV[\s-]*/i, "");
   return "HSV " + raw;
 }
 
@@ -159,7 +159,6 @@ function renderStart(){
     <header>
       <h1>Kurzer Belastungscheck</h1>
       <p class="sub">nach Training oder Spiel</p>
-      <span class="status">ENTWURF – TESTVERSION</span>
     </header>
     <main>
       <p style="font-size:14px;line-height:1.5;">Bitte bewerte die gerade beendete Einheit als Ganzes. Der reguläre Check dauert weniger als eine Minute. Am besten 10–30 Minuten nach Ende der Einheit ausfüllen.</p>
@@ -175,7 +174,7 @@ function renderStart(){
         <label>Einheit endete um</label>
         <input type="time" id="f_ende">
       </div>
-      <div class="note-box">Diese Version ist ein Entwurf zum Ausprobieren. Es werden noch keine echten Daten gespeichert oder verschickt.</div>
+      <div class="note-box">Deine Antworten werden direkt und vertraulich an Olli übermittelt.</div>
     </main>
     <footer>
       <button class="btn btn-primary" id="startBtn" disabled>Los geht's</button>
@@ -352,6 +351,27 @@ function escapeHtml(s){
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
+function buildMachineRecord(){
+  const rawId = (state.meta.athletinId || "").trim();
+  const isTest = /test/i.test(rawId);
+  const sessionEnde = (state.meta.datum && state.meta.ende) ? (state.meta.datum + "T" + state.meta.ende + ":00") : "";
+  const rec = {
+    datenart: isTest ? "technischer_test" : "echtdaten",
+    record_id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ("rid_" + Date.now() + "_" + Math.random().toString(36).slice(2)),
+    athletin_id: fullAthletinId(),
+    session_id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ("sid_" + Date.now() + "_" + Math.random().toString(36).slice(2)),
+    session_ende: sessionEnde,
+    erfasst_am: new Date().toISOString(),
+    fragebogen_version: "POST-SESSION-0.3",
+    datenquelle_vorbelegung: "keine",
+    pruefstatus: "neu"
+  };
+  questions.forEach(q=>{
+    if(state.answers[q.id] !== undefined) rec[q.id] = state.answers[q.id];
+  });
+  return rec;
+}
+
 function buildPlainText(){
   const vis = visibleQuestions();
   const lines = [];
@@ -378,6 +398,9 @@ function buildPlainText(){
     if(v===undefined || v==="") v = "keine Angabe";
     lines.push(q.title + ": " + v);
   });
+  lines.push("");
+  lines.push("--- Maschinenlesbar (JSON, für automatische Auswertung, bitte nicht von Hand bearbeiten) ---");
+  lines.push(JSON.stringify(buildMachineRecord()));
   return lines.join("\n");
 }
 
