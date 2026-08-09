@@ -159,6 +159,11 @@ const questions = [
     title:"Möchtest du sonst noch etwas ergänzen?" }
 ];
 
+function fullAthletinId(){
+  const raw = (state.meta.athletinId || "").trim().replace(/^HSV\s*/i, "");
+  return "HSV " + raw;
+}
+
 function visibleQuestions(){
   return questions.filter(q => !q.showIf || q.showIf(state.answers));
 }
@@ -193,8 +198,8 @@ function renderStart(){
         <input type="date" id="f_datum">
       </div>
       <div class="field-row">
-        <label>Athletinnen-ID (einfach deine Nummer)</label>
-        <input type="text" id="f_id" placeholder="z. B. HSV 003">
+        <label>Deine Trikotnummer</label>
+        <input type="text" id="f_id" placeholder="z. B. 73" inputmode="numeric">
       </div>
       <div class="field-row">
         <label>Welcher Check ist das?</label>
@@ -396,7 +401,7 @@ function buildPlainText(){
   const lines = [];
   lines.push("Bereitschafts-Check (" + state.meta.checkTyp + ")");
   lines.push("Datum: " + state.meta.datum);
-  lines.push("Athletinnen-ID: " + state.meta.athletinId);
+  lines.push("Athletinnen-ID: " + fullAthletinId());
   lines.push("");
   vis.forEach(q=>{
     if(q.type==="regiontissue"){
@@ -422,7 +427,7 @@ function buildPlainText(){
 function renderSummary(){
   const vis = visibleQuestions();
   let rows = `
-    <div class="summary-item"><div class="summary-q">Datum / ID / Check</div>${state.meta.datum} · ${state.meta.athletinId} · ${state.meta.checkTyp}</div>
+    <div class="summary-item"><div class="summary-q">Datum / ID / Check</div>${state.meta.datum} · ${fullAthletinId()} · ${state.meta.checkTyp}</div>
   `;
   vis.forEach(q=>{
     if(q.type==="regiontissue"){
@@ -483,7 +488,7 @@ function renderSummary(){
   document.getElementById("autoSendBtn").addEventListener("click", ()=>{
     const btn = document.getElementById("autoSendBtn");
     const statusEl = document.getElementById("sendStatus");
-    const subject = "Bereitschafts-Check " + state.meta.checkTyp + " – " + state.meta.athletinId;
+    const subject = "Bereitschafts-Check " + state.meta.checkTyp + " – " + fullAthletinId();
     const message = plainText;
     btn.disabled = true;
     btn.textContent = "Wird gesendet …";
@@ -504,7 +509,7 @@ function renderSummary(){
       });
   });
   document.getElementById("mailBtn").addEventListener("click", ()=>{
-    const subject = encodeURIComponent("Bereitschafts-Check " + state.meta.checkTyp + " – " + state.meta.athletinId);
+    const subject = encodeURIComponent("Bereitschafts-Check " + state.meta.checkTyp + " – " + fullAthletinId());
     const body = encodeURIComponent(plainText);
     window.location.href = "mailto:og.hsvlegenden@gmail.com?subject=" + subject + "&body=" + body;
   });
