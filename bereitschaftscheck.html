@@ -56,6 +56,8 @@
   .tissue-region{ font-weight:700; font-size:14px; margin-bottom:6px; }
   .tissue-options{ flex-direction:row; flex-wrap:wrap; gap:8px; margin-top:0; }
   .tissue-btn{ flex:none; padding:10px 12px; font-size:13.5px; }
+  .tissue-scale-label{ font-size:12px; color:var(--gray); margin-top:10px; }
+  .tissue-scale-grid{ margin-top:6px; }
   .field-row{ margin-bottom:16px; }
   .field-row label{ display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:#333;}
   footer{ padding:14px 20px 24px; border-top:1px solid var(--border); display:flex; gap:10px; position:sticky; bottom:0; background:var(--card);}
@@ -170,7 +172,7 @@ function isAnswered(q){
     const regions = (state.answers[q.regionsField]||[]).filter(r=>TISSUE_REGIONS.includes(r));
     if(regions.length===0) return true;
     const gew = v || {};
-    return regions.every(r => Array.isArray(gew[r]) && gew[r].length>0);
+    return regions.every(r => gew[r] && Array.isArray(gew[r].arten) && gew[r].arten.length>0 && gew[r].staerke !== undefined);
   }
   return v !== undefined && v !== "" && v !== null;
 }
@@ -268,12 +270,18 @@ function renderQuestion(){
     const regions = (state.answers[q.regionsField]||[]).filter(r=>TISSUE_REGIONS.includes(r));
     const gew = state.answers[q.id] || {};
     bodyHtml += regions.map(r=>{
-      const sel = gew[r] || [];
+      const entry = gew[r] || {arten:[], staerke:undefined};
+      const sel = entry.arten || [];
+      const scaleBtns = Array.from({length:11},(_,n)=>
+        `<button class="scale-btn tissue-scale-btn ${entry.staerke===n?'selected':''}" data-r="${encodeURIComponent(r)}" data-n="${n}">${n}</button>`
+      ).join("");
       return `<div class="tissue-row">
         <div class="tissue-region">${r}</div>
         <div class="options tissue-options">${TISSUE_TYPES.map(t=>
           `<button class="opt-btn tissue-btn ${sel.includes(t)?'selected':''}" data-r="${encodeURIComponent(r)}" data-t="${encodeURIComponent(t)}">${t}</button>`
         ).join("")}</div>
+        <div class="tissue-scale-label">Stärke für diese Region (0 = keine, 10 = stärkste vorstellbare)</div>
+        <div class="scale-grid tissue-scale-grid">${scaleBtns}</div>
       </div>`;
     }).join("");
   }
@@ -337,9 +345,19 @@ function renderQuestion(){
         const r = decodeURIComponent(btn.dataset.r);
         const t = decodeURIComponent(btn.dataset.t);
         const gew = state.answers[q.id] || (state.answers[q.id] = {});
-        const arr = gew[r] || (gew[r] = []);
-        const idx = arr.indexOf(t);
-        if(idx>=0) arr.splice(idx,1); else arr.push(t);
+        const entry = gew[r] || (gew[r] = {arten:[], staerke:undefined});
+        const idx = entry.arten.indexOf(t);
+        if(idx>=0) entry.arten.splice(idx,1); else entry.arten.push(t);
+        renderQuestion();
+      });
+    });
+    document.querySelectorAll(".tissue-scale-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const r = decodeURIComponent(btn.dataset.r);
+        const n = parseInt(btn.dataset.n,10);
+        const gew = state.answers[q.id] || (state.answers[q.id] = {});
+        const entry = gew[r] || (gew[r] = {arten:[], staerke:undefined});
+        entry.staerke = n;
         renderQuestion();
       });
     });
@@ -372,9 +390,12 @@ function buildPlainText(){
     if(q.type==="regiontissue"){
       const regions = (state.answers[q.regionsField]||[]).filter(r=>TISSUE_REGIONS.includes(r));
       const gew = state.answers[q.id] || {};
-      lines.push("Region und Gewebeart der Beschwerden:");
+      lines.push("Region, Gewebeart und Stärke der Beschwerden:");
       regions.forEach(r=>{
-        lines.push("- " + r + ": " + ((gew[r]||[]).join(", ") || "keine Angabe"));
+        const entry = gew[r] || {};
+        const arten = (entry.arten||[]).join(", ") || "keine Angabe";
+        const staerke = entry.staerke !== undefined ? entry.staerke + "/10" : "keine Angabe";
+        lines.push("- " + r + ": " + arten + " (Stärke: " + staerke + ")");
       });
       return;
     }
@@ -395,8 +416,13 @@ function renderSummary(){
     if(q.type==="regiontissue"){
       const regions = (state.answers[q.regionsField]||[]).filter(r=>TISSUE_REGIONS.includes(r));
       const gew = state.answers[q.id] || {};
-      const detail = regions.map(r=>`${r}: ${(gew[r]||[]).join(", ") || "keine Angabe"}`).join("<br>") || "– keine Angabe –";
-      rows += `<div class="summary-item"><div class="summary-q">Region und Gewebeart</div>${detail}</div>`;
+      const detail = regions.map(r=>{
+        const entry = gew[r] || {};
+        const arten = (entry.arten||[]).join(", ") || "keine Angabe";
+        const staerke = entry.staerke !== undefined ? entry.staerke + "/10" : "keine Angabe";
+        return `${r}: ${arten} (Stärke ${staerke})`;
+      }).join("<br>") || "– keine Angabe –";
+      rows += `<div class="summary-item"><div class="summary-q">Region, Gewebeart und Stärke</div>${detail}</div>`;
       return;
     }
     let v = state.answers[q.id];
