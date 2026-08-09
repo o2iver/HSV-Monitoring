@@ -48,6 +48,10 @@
   }
   textarea{ min-height:80px; resize:vertical; }
   .charcount{ font-size:11px; color:var(--gray); text-align:right; margin-top:4px;}
+  .tissue-row{ margin-bottom:16px; }
+  .tissue-region{ font-weight:700; font-size:14px; margin-bottom:6px; }
+  .tissue-options{ flex-direction:row; flex-wrap:wrap; gap:8px; margin-top:0; }
+  .tissue-btn{ flex:none; padding:10px 12px; font-size:13.5px; }
   .field-row{ margin-bottom:16px; }
   .field-row label{ display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:#333;}
   footer{ padding:14px 20px 24px; border-top:1px solid var(--border); display:flex; gap:10px; position:sticky; bottom:0; background:var(--card);}
@@ -75,6 +79,9 @@ const state = {
   answers: {}
 };
 
+const TISSUE_REGIONS = ["Kopf / Nacken","Schulter / Arm / Hand","Rücken / Rumpf","Hüfte / Leiste","Oberschenkel","Knie","Unterschenkel","Sprunggelenk / Fuß"];
+const TISSUE_TYPES = ["Gelenk","Muskel / Sehne","Unsicher"];
+
 const questions = [
   { id:"einheit_typ", type:"multi", other:true, required:true,
     title:"Welche Einheit hast du gerade beendet?",
@@ -99,6 +106,15 @@ const questions = [
   { id:"beschwerden_nach_einheit", type:"single", required:true,
     title:"Sind während oder nach der Einheit neue Beschwerden aufgetreten oder bestehende Beschwerden schlechter geworden?",
     options:["Nein","Ja","Unsicher"] },
+  { id:"beschwerderegion_nach_einheit", type:"multi", required:true,
+    showIf: a => a.beschwerden_nach_einheit==="Ja" || a.beschwerden_nach_einheit==="Unsicher",
+    title:"Wo liegen die Beschwerden hauptsächlich?", hint:"Mehrfachauswahl möglich.",
+    options:["Kopf / Nacken","Schulter / Arm / Hand","Rücken / Rumpf","Hüfte / Leiste","Oberschenkel","Knie","Unterschenkel","Sprunggelenk / Fuß","ganzer Körper","andere / unklar"] },
+  { id:"beschwerde_gewebe_nach_einheit", type:"regiontissue", required:true, regionsField:"beschwerderegion_nach_einheit",
+    showIf: a => (a.beschwerden_nach_einheit==="Ja" || a.beschwerden_nach_einheit==="Unsicher") &&
+      Array.isArray(a.beschwerderegion_nach_einheit) && a.beschwerderegion_nach_einheit.some(r => TISSUE_REGIONS.includes(r)),
+    title:"Ist es dort eher das Gelenk, der Muskel/die Sehne – oder unsicher?",
+    hint:"Für jede angegebene Region einzeln, Mehrfachauswahl je Region möglich." },
   { id:"beschwerdestaerke_nach_einheit", type:"scale11", required:true,
     showIf: a => a.beschwerden_nach_einheit==="Ja" || a.beschwerden_nach_einheit==="Unsicher",
     title:"Wie stark sind die Beschwerden jetzt?", lowLabel:"keine Beschwerden", highLabel:"stärkste vorstellbare" },
@@ -120,6 +136,12 @@ function isAnswered(q){
   if(q.type==="multi") return Array.isArray(v) && v.length>0;
   if(q.type==="text") return true;
   if(q.type==="number") return v !== undefined && v !== "" && !isNaN(v);
+  if(q.type==="regiontissue"){
+    const regions = (state.answers[q.regionsField]||[]).filter(r=>TISSUE_REGIONS.includes(r));
+    if(regions.length===0) return true;
+    const gew = v || {};
+    return regions.every(r => Array.isArray(gew[r]) && gew[r].length>0);
+  }
   return v !== undefined && v !== "" && v !== null;
 }
 
@@ -197,6 +219,18 @@ function renderQuestion(){
     const val = state.answers[q.id] || "";
     bodyHtml += `<textarea id="freeText" maxlength="${q.maxLen}" placeholder="Optional …">${val}</textarea>`;
     bodyHtml += `<div class="charcount" id="charcount">${val.length} / ${q.maxLen}</div>`;
+  } else if(q.type==="regiontissue"){
+    const regions = (state.answers[q.regionsField]||[]).filter(r=>TISSUE_REGIONS.includes(r));
+    const gew = state.answers[q.id] || {};
+    bodyHtml += regions.map(r=>{
+      const sel = gew[r] || [];
+      return `<div class="tissue-row">
+        <div class="tissue-region">${r}</div>
+        <div class="options tissue-options">${TISSUE_TYPES.map(t=>
+          `<button class="opt-btn tissue-btn ${sel.includes(t)?'selected':''}" data-r="${encodeURIComponent(r)}" data-t="${encodeURIComponent(t)}">${t}</button>`
+        ).join("")}</div>
+      </div>`;
+    }).join("");
   }
 
   app().innerHTML = `
@@ -251,6 +285,18 @@ function renderQuestion(){
       state.answers[q.id] = e.target.value;
       document.getElementById("charcount").textContent = e.target.value.length + " / " + q.maxLen;
     });
+  } else if(q.type==="regiontissue"){
+    document.querySelectorAll(".tissue-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const r = decodeURIComponent(btn.dataset.r);
+        const t = decodeURIComponent(btn.dataset.t);
+        const gew = state.answers[q.id] || (state.answers[q.id] = {});
+        const arr = gew[r] || (gew[r] = []);
+        const idx = arr.indexOf(t);
+        if(idx>=0) arr.splice(idx,1); else arr.push(t);
+        renderQuestion();
+      });
+    });
   }
 
   document.getElementById("backBtn").addEventListener("click", ()=>{
@@ -280,6 +326,15 @@ function buildPlainText(){
   lines.push("Einheit endete um: " + state.meta.ende + " Uhr");
   lines.push("");
   vis.forEach(q=>{
+    if(q.type==="regiontissue"){
+      const regions = (state.answers[q.regionsField]||[]).filter(r=>TISSUE_REGIONS.includes(r));
+      const gew = state.answers[q.id] || {};
+      lines.push("Region und Gewebeart der Beschwerden:");
+      regions.forEach(r=>{
+        lines.push("- " + r + ": " + ((gew[r]||[]).join(", ") || "keine Angabe"));
+      });
+      return;
+    }
     let v = state.answers[q.id];
     if(Array.isArray(v)) v = v.join(", ") + (state.answers[q.id+"_sonstiges"] ? " (" + state.answers[q.id+"_sonstiges"] + ")" : "");
     if(v===undefined || v==="") v = "keine Angabe";
@@ -294,6 +349,13 @@ function renderSummary(){
     <div class="summary-item"><div class="summary-q">Datum / ID / Ende</div>${state.meta.datum} · ${state.meta.athletinId} · ${state.meta.ende} Uhr</div>
   `;
   vis.forEach(q=>{
+    if(q.type==="regiontissue"){
+      const regions = (state.answers[q.regionsField]||[]).filter(r=>TISSUE_REGIONS.includes(r));
+      const gew = state.answers[q.id] || {};
+      const detail = regions.map(r=>`${r}: ${(gew[r]||[]).join(", ") || "keine Angabe"}`).join("<br>") || "– keine Angabe –";
+      rows += `<div class="summary-item"><div class="summary-q">Region und Gewebeart</div>${detail}</div>`;
+      return;
+    }
     let v = state.answers[q.id];
     if(Array.isArray(v)) v = v.join(", ") + (state.answers[q.id+"_sonstiges"] ? " (" + state.answers[q.id+"_sonstiges"] + ")" : "");
     if(v===undefined || v==="") v = "– keine Angabe –";
