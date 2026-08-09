@@ -124,7 +124,7 @@ const questions = [
       Array.isArray(a.beschwerderegion) && a.beschwerderegion.some(r => TISSUE_REGIONS.includes(r)),
     title:"Ist es dort eher das Gelenk, der Muskel/die Sehne – oder unsicher?",
     hint:"Für jede angegebene Region einzeln, Mehrfachauswahl je Region möglich." },
-  { id:"beschwerdestaerke", type:"scale11", required:true,
+  { id:"beschwerdestaerke", type:"scale11", required:true, autoFromRegions:"beschwerde_gewebe",
     showIf: a => a.beschwerden_vorhanden==="Ja" || a.beschwerden_vorhanden==="Unsicher",
     title:"Wie stark sind die Beschwerden aktuell?", lowLabel:"keine Beschwerden", highLabel:"stärkste vorstellbare" },
   { id:"teilnahmebeeinflussung", type:"single", required:true,
@@ -258,10 +258,22 @@ function renderQuestion(){
     ).join("") + `</div>`;
     bodyHtml += `<div class="scale-caption"><span>${q.labels[0]}</span><span>${q.labels[4]}</span></div>`;
   } else if(q.type==="scale11"){
-    bodyHtml += `<div class="scale-grid">` + Array.from({length:11},(_,n)=>
-      `<button class="scale-btn ${state.answers[q.id]===n?'selected':''}" data-n="${n}">${n}</button>`
-    ).join("") + `</div>`;
-    bodyHtml += `<div class="scale-caption"><span>${q.lowLabel}</span><span>${q.highLabel}</span></div>`;
+    let autoHandled = false;
+    if(q.autoFromRegions){
+      const gew = state.answers[q.autoFromRegions] || {};
+      const vals = Object.values(gew).map(e=>e.staerke).filter(v=>v!==undefined);
+      if(vals.length>0){
+        state.answers[q.id] = Math.max(...vals);
+        bodyHtml += `<div class="note-box">Automatisch aus deinen Angaben zu den einzelnen Regionen übernommen: <strong>${state.answers[q.id]}/10</strong> (höchster angegebener Wert). Keine weitere Eingabe nötig.</div>`;
+        autoHandled = true;
+      }
+    }
+    if(!autoHandled){
+      bodyHtml += `<div class="scale-grid">` + Array.from({length:11},(_,n)=>
+        `<button class="scale-btn ${state.answers[q.id]===n?'selected':''}" data-n="${n}">${n}</button>`
+      ).join("") + `</div>`;
+      bodyHtml += `<div class="scale-caption"><span>${q.lowLabel}</span><span>${q.highLabel}</span></div>`;
+    }
   } else if(q.type==="text"){
     const val = state.answers[q.id] || "";
     bodyHtml += `<textarea id="freeText" maxlength="${q.maxLen}" placeholder="Optional …">${val}</textarea>`;

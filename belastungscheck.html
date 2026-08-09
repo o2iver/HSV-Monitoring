@@ -117,7 +117,7 @@ const questions = [
       Array.isArray(a.beschwerderegion_nach_einheit) && a.beschwerderegion_nach_einheit.some(r => TISSUE_REGIONS.includes(r)),
     title:"Ist es dort eher das Gelenk, der Muskel/die Sehne – oder unsicher?",
     hint:"Für jede angegebene Region einzeln, Mehrfachauswahl je Region möglich." },
-  { id:"beschwerdestaerke_nach_einheit", type:"scale11", required:true,
+  { id:"beschwerdestaerke_nach_einheit", type:"scale11", required:true, autoFromRegions:"beschwerde_gewebe_nach_einheit",
     showIf: a => a.beschwerden_nach_einheit==="Ja" || a.beschwerden_nach_einheit==="Unsicher",
     title:"Wie stark sind die Beschwerden jetzt?", lowLabel:"keine Beschwerden", highLabel:"stärkste vorstellbare" },
   { id:"kontaktwunsch_nach_einheit", type:"single", required:true,
@@ -210,10 +210,22 @@ function renderQuestion(){
       bodyHtml += `<input type="text" id="otherText" placeholder="Welche andere Einheit?" maxlength="50" style="margin-top:10px;" value="${state.answers[q.id+'_sonstiges']||''}">`;
     }
   } else if(q.type==="scale11"){
-    bodyHtml += `<div class="scale-grid">` + Array.from({length:11},(_,n)=>
-      `<button class="scale-btn ${state.answers[q.id]===n?'selected':''}" data-n="${n}">${n}</button>`
-    ).join("") + `</div>`;
-    bodyHtml += `<div class="scale-caption"><span>${q.lowLabel}</span><span>${q.highLabel}</span></div>`;
+    let autoHandled = false;
+    if(q.autoFromRegions){
+      const gew = state.answers[q.autoFromRegions] || {};
+      const vals = Object.values(gew).map(e=>e.staerke).filter(v=>v!==undefined);
+      if(vals.length>0){
+        state.answers[q.id] = Math.max(...vals);
+        bodyHtml += `<div class="note-box">Automatisch aus deinen Angaben zu den einzelnen Regionen übernommen: <strong>${state.answers[q.id]}/10</strong> (höchster angegebener Wert). Keine weitere Eingabe nötig.</div>`;
+        autoHandled = true;
+      }
+    }
+    if(!autoHandled){
+      bodyHtml += `<div class="scale-grid">` + Array.from({length:11},(_,n)=>
+        `<button class="scale-btn ${state.answers[q.id]===n?'selected':''}" data-n="${n}">${n}</button>`
+      ).join("") + `</div>`;
+      bodyHtml += `<div class="scale-caption"><span>${q.lowLabel}</span><span>${q.highLabel}</span></div>`;
+    }
   } else if(q.type==="number"){
     const val = state.answers[q.id] !== undefined ? state.answers[q.id] : "";
     bodyHtml += `<input type="number" id="numInput" min="${q.min}" max="${q.max}" value="${val}" placeholder="Minuten">`;
