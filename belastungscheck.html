@@ -81,8 +81,8 @@ const state = {
   answers: {}
 };
 
-const TISSUE_REGIONS = ["Kopf / Nacken","Schulter / Arm / Hand","Rücken / Rumpf","Hüfte / Leiste","Oberschenkel","Knie","Unterschenkel","Sprunggelenk / Fuß"];
-const TISSUE_TYPES = ["Gelenk","Muskel / Sehne","Unsicher"];
+const TISSUE_REGIONS = ["Kopf / Nacken","Schulter / Arm","Ellenbogen / Arm","Unterarm / Handgelenk","Rücken / Rumpf","Hüfte / Leiste","Oberschenkel","Knie","Unterschenkel","Sprunggelenk / Fuß"];
+const TISSUE_TYPES = ["Gelenk","Muskel","Sehne","Unsicher"];
 
 const questions = [
   { id:"einheit_typ", type:"multi", other:true, required:true,
@@ -111,11 +111,11 @@ const questions = [
   { id:"beschwerderegion_nach_einheit", type:"multi", required:true,
     showIf: a => a.beschwerden_nach_einheit==="Ja" || a.beschwerden_nach_einheit==="Unsicher",
     title:"Wo liegen die Beschwerden hauptsächlich?", hint:"Mehrfachauswahl möglich.",
-    options:["Kopf / Nacken","Schulter / Arm / Hand","Rücken / Rumpf","Hüfte / Leiste","Oberschenkel","Knie","Unterschenkel","Sprunggelenk / Fuß","ganzer Körper","andere / unklar"] },
+    options:["Kopf / Nacken","Schulter / Arm","Ellenbogen / Arm","Unterarm / Handgelenk","Rücken / Rumpf","Hüfte / Leiste","Oberschenkel","Knie","Unterschenkel","Sprunggelenk / Fuß","ganzer Körper","andere / unklar"] },
   { id:"beschwerde_gewebe_nach_einheit", type:"regiontissue", required:true, regionsField:"beschwerderegion_nach_einheit",
     showIf: a => (a.beschwerden_nach_einheit==="Ja" || a.beschwerden_nach_einheit==="Unsicher") &&
       Array.isArray(a.beschwerderegion_nach_einheit) && a.beschwerderegion_nach_einheit.some(r => TISSUE_REGIONS.includes(r)),
-    title:"Ist es dort eher das Gelenk, der Muskel/die Sehne – oder unsicher?",
+    title:"Ist es dort eher das Gelenk, der Muskel, die Sehne – oder unsicher?",
     hint:"Für jede angegebene Region einzeln, Mehrfachauswahl je Region möglich." },
   { id:"beschwerdestaerke_nach_einheit", type:"scale11", required:true, autoFromRegions:"beschwerde_gewebe_nach_einheit",
     showIf: a => a.beschwerden_nach_einheit==="Ja" || a.beschwerden_nach_einheit==="Unsicher",
@@ -362,7 +362,7 @@ function buildMachineRecord(){
     session_id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ("sid_" + Date.now() + "_" + Math.random().toString(36).slice(2)),
     session_ende: sessionEnde,
     erfasst_am: new Date().toISOString(),
-    fragebogen_version: "POST-SESSION-0.3",
+    fragebogen_version: "POST-SESSION-0.4",
     datenquelle_vorbelegung: "keine",
     pruefstatus: "neu"
   };

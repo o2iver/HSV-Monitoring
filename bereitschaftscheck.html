@@ -86,8 +86,8 @@ const state = {
   answers: {}
 };
 
-const TISSUE_REGIONS = ["Kopf / Nacken","Schulter / Arm / Hand","Rücken / Rumpf","Hüfte / Leiste","Oberschenkel","Knie","Unterschenkel","Sprunggelenk / Fuß"];
-const TISSUE_TYPES = ["Gelenk","Muskel / Sehne","Unsicher"];
+const TISSUE_REGIONS = ["Kopf / Nacken","Schulter / Arm","Ellenbogen / Arm","Unterarm / Handgelenk","Rücken / Rumpf","Hüfte / Leiste","Oberschenkel","Knie","Unterschenkel","Sprunggelenk / Fuß"];
+const TISSUE_TYPES = ["Gelenk","Muskel","Sehne","Unsicher"];
 
 const questions = [
   { id:"plan_heute", type:"multi", other:true, required:true,
@@ -118,11 +118,11 @@ const questions = [
   { id:"beschwerderegion", type:"multi", required:true,
     showIf: a => a.beschwerden_vorhanden==="Ja" || a.beschwerden_vorhanden==="Unsicher",
     title:"Wo liegen die Beschwerden hauptsächlich?", hint:"Mehrfachauswahl möglich.",
-    options:["Kopf / Nacken","Schulter / Arm / Hand","Rücken / Rumpf","Hüfte / Leiste","Oberschenkel","Knie","Unterschenkel","Sprunggelenk / Fuß","ganzer Körper","andere / unklar"] },
+    options:["Kopf / Nacken","Schulter / Arm","Ellenbogen / Arm","Unterarm / Handgelenk","Rücken / Rumpf","Hüfte / Leiste","Oberschenkel","Knie","Unterschenkel","Sprunggelenk / Fuß","ganzer Körper","andere / unklar"] },
   { id:"beschwerde_gewebe", type:"regiontissue", required:true, regionsField:"beschwerderegion",
     showIf: a => (a.beschwerden_vorhanden==="Ja" || a.beschwerden_vorhanden==="Unsicher") &&
       Array.isArray(a.beschwerderegion) && a.beschwerderegion.some(r => TISSUE_REGIONS.includes(r)),
-    title:"Ist es dort eher das Gelenk, der Muskel/die Sehne – oder unsicher?",
+    title:"Ist es dort eher das Gelenk, der Muskel, die Sehne – oder unsicher?",
     hint:"Für jede angegebene Region einzeln, Mehrfachauswahl je Region möglich." },
   { id:"beschwerdestaerke", type:"scale11", required:true, autoFromRegions:"beschwerde_gewebe",
     showIf: a => a.beschwerden_vorhanden==="Ja" || a.beschwerden_vorhanden==="Unsicher",
@@ -139,10 +139,6 @@ const questions = [
     showIf: a => a.beschwerden_vorhanden==="Ja" || a.beschwerden_vorhanden==="Unsicher",
     title:"Möchtest du deswegen persönlich kontaktiert werden?",
     options:["Ja, möglichst zeitnah","Ja, beim nächsten regulären Termin","Nein","Unsicher"] },
-  { id:"akute_warnzeichen", type:"single", required:true, warning:true,
-    title:"Wichtiger Sicherheitshinweis — bitte immer beantworten",
-    hint:"Besteht aktuell eines dieser Warnzeichen: Brustschmerz, Atemnot in Ruhe, Ohnmacht, hohes Fieber oder eine andere akut bedrohlich wirkende Situation?",
-    options:["Nein","Ja","Unsicher"] },
   { id:"zyklus", type:"single", required:false, confidential:true,
     title:"Beeinflussen zyklusbezogene Beschwerden aktuell dein Training oder Wohlbefinden?",
     hint:"Freiwillig. Wird nicht automatisch in einen Trainerbericht übernommen.",
@@ -405,7 +401,7 @@ function buildMachineRecord(){
     erfasst_am: new Date().toISOString(),
     check_typ: state.meta.checkTyp,
     datum: state.meta.datum,
-    fragebogen_version: "KURZ-MWF-0.4",
+    fragebogen_version: "KURZ-MWF-0.5",
     pruefstatus: "neu"
   };
   questions.forEach(q=>{
