@@ -82,7 +82,7 @@ const state = {
 };
 
 const TISSUE_REGIONS = ["Kopf / Nacken","Schulter / Arm","Ellenbogen / Arm","Unterarm / Handgelenk","Rücken / Rumpf","Hüfte / Leiste","Oberschenkel","Knie","Unterschenkel","Sprunggelenk / Fuß"];
-const TISSUE_TYPES = ["Gelenk","Muskel","Sehne","Unsicher"];
+const TISSUE_TYPES = ["Gelenk","Muskel","Sehne","Bänder","Unsicher"];
 
 const questions = [
   { id:"einheit_typ", type:"multi", other:true, required:true,
@@ -115,7 +115,7 @@ const questions = [
   { id:"beschwerde_gewebe_nach_einheit", type:"regiontissue", required:true, regionsField:"beschwerderegion_nach_einheit",
     showIf: a => (a.beschwerden_nach_einheit==="Ja" || a.beschwerden_nach_einheit==="Unsicher") &&
       Array.isArray(a.beschwerderegion_nach_einheit) && a.beschwerderegion_nach_einheit.some(r => TISSUE_REGIONS.includes(r)),
-    title:"Ist es dort eher das Gelenk, der Muskel, die Sehne – oder unsicher?",
+    title:"Ist es dort eher das Gelenk, der Muskel, die Sehne, ein Band – oder unsicher?",
     hint:"Für jede angegebene Region einzeln, Mehrfachauswahl je Region möglich." },
   { id:"beschwerdestaerke_nach_einheit", type:"scale11", required:true, autoFromRegions:"beschwerde_gewebe_nach_einheit",
     showIf: a => a.beschwerden_nach_einheit==="Ja" || a.beschwerden_nach_einheit==="Unsicher",

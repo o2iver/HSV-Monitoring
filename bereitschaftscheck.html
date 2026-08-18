@@ -87,7 +87,7 @@ const state = {
 };
 
 const TISSUE_REGIONS = ["Kopf / Nacken","Schulter / Arm","Ellenbogen / Arm","Unterarm / Handgelenk","Rücken / Rumpf","Hüfte / Leiste","Oberschenkel","Knie","Unterschenkel","Sprunggelenk / Fuß"];
-const TISSUE_TYPES = ["Gelenk","Muskel","Sehne","Unsicher"];
+const TISSUE_TYPES = ["Gelenk","Muskel","Sehne","Bänder","Unsicher"];
 
 const questions = [
   { id:"plan_heute", type:"multi", other:true, required:true,
@@ -122,7 +122,7 @@ const questions = [
   { id:"beschwerde_gewebe", type:"regiontissue", required:true, regionsField:"beschwerderegion",
     showIf: a => (a.beschwerden_vorhanden==="Ja" || a.beschwerden_vorhanden==="Unsicher") &&
       Array.isArray(a.beschwerderegion) && a.beschwerderegion.some(r => TISSUE_REGIONS.includes(r)),
-    title:"Ist es dort eher das Gelenk, der Muskel, die Sehne – oder unsicher?",
+    title:"Ist es dort eher das Gelenk, der Muskel, die Sehne, ein Band – oder unsicher?",
     hint:"Für jede angegebene Region einzeln, Mehrfachauswahl je Region möglich." },
   { id:"beschwerdestaerke", type:"scale11", required:true, autoFromRegions:"beschwerde_gewebe",
     showIf: a => a.beschwerden_vorhanden==="Ja" || a.beschwerden_vorhanden==="Unsicher",
@@ -147,8 +147,8 @@ const questions = [
     title:"Möchtest du dazu ein vertrauliches Gespräch?",
     options:["Ja","Nein","vielleicht später"] },
   { id:"spielbereitschaft", type:"single", required:true,
-    showIf: a => state.meta.checkTyp === "freitag",
-    title:"Nur freitags: Wie schätzt du deine Teilnahme am kommenden Spiel aktuell ein?",
+    showIf: a => state.meta.checkTyp === "spieltag",
+    title:"Nur am Spieltag: Wie schätzt du deine Teilnahme am heutigen Spiel aktuell ein?",
     hint:"Das ist deine eigene Einschätzung, keine medizinische Freigabe.",
     options:["vollständig möglich","möglich, aber eingeschränkt","noch unsicher","voraussichtlich nicht möglich","kein Spiel vorgesehen"] },
   { id:"freitext", type:"text", required:false, maxLen:250,
@@ -184,7 +184,7 @@ function renderStart(){
   app().innerHTML = `
     <header>
       <h1>Kurzer Bereitschafts-Check</h1>
-      <p class="sub">Montag / Mittwoch / Freitag</p>
+      <p class="sub">Montag / Mittwoch / Donnerstag / Spieltag</p>
     </header>
     <main>
       <p style="font-size:14px;line-height:1.5;">Bitte fülle diesen Check nach deinem aktuellen Gefühl aus. Es gibt keine richtigen oder falschen Antworten. Der reguläre Check dauert etwa 1–2 Minuten. Bei Beschwerden erscheinen ein paar Zusatzfragen.</p>
@@ -199,7 +199,7 @@ function renderStart(){
       <div class="field-row">
         <label>Welcher Check ist das?</label>
         <div class="options" id="f_checktyp">
-          ${["montag","mittwoch","freitag"].map(v=>`<button class="opt-btn" data-v="${v}">${v[0].toUpperCase()+v.slice(1)}</button>`).join("")}
+          ${["montag","mittwoch","donnerstag","spieltag"].map(v=>`<button class="opt-btn" data-v="${v}">${v[0].toUpperCase()+v.slice(1)}</button>`).join("")}
         </div>
       </div>
       <div class="note-box">Deine Antworten werden direkt und vertraulich an Olli übermittelt.</div>
