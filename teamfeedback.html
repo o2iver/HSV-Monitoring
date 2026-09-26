@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Feedback & Verbesserungsvorschläge</title>
+<style>
+  :root{
+    --blue:#0F777E; --blue-dark:#0A4D52; --green:#2e7d32; --red:#b00020;
+    --gray:#6b7280; --bg:#f4f5f7; --card:#ffffff; --border:#e2e4e8; --text:#00223F;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:var(--bg); color:var(--text); display:flex; justify-content:center;
+    padding:0 0 40px 0;
+  }
+  .app{ width:100%; max-width:480px; min-height:100vh; background:var(--card);
+    box-shadow:0 0 24px rgba(0,0,0,0.06); display:flex; flex-direction:column; }
+  header{ padding:16px 20px 12px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--card); z-index:5;}
+  header h1{ font-size:19px; margin:0 0 2px; }
+  header .sub{ font-size:13px; color:var(--gray); margin:0; }
+  main{ flex:1; padding:20px; }
+  .intro{ font-size:14px; line-height:1.5; margin:0 0 18px; }
+  .field-row{ margin-bottom:18px; }
+  .field-row label{ display:block; font-size:14px; font-weight:700; margin-bottom:6px; }
+  .field-row .fhint{ font-size:12.5px; color:var(--gray); margin:-2px 0 6px; }
+  textarea, input[type=text], input[type=date]{
+    width:100%; padding:12px 14px; font-size:15px; border-radius:10px; border:2px solid var(--border);
+    font-family:inherit;
+  }
+  textarea{ min-height:80px; resize:vertical; }
+  .charcount{ font-size:11px; color:var(--gray); text-align:right; margin-top:4px;}
+  .anon-box{ margin-bottom:18px; padding:12px 14px; border-radius:10px; background:#E7F1F2; font-size:13px; color:var(--blue-dark); }
+  .note-box{ margin-top:18px; padding:14px; border-radius:10px; background:#f0f4ff; font-size:13px; color:#333; }
+  footer{ padding:14px 20px 24px; border-top:1px solid var(--border); display:flex; gap:10px; position:sticky; bottom:0; background:var(--card);}
+  .btn{ flex:1; padding:14px; border-radius:12px; border:none; font-size:15px; font-weight:700; cursor:pointer; }
+  .btn-primary{ background:var(--blue); color:#fff; }
+  .btn-primary:disabled{ background:#c9d4e8; cursor:not-allowed; }
+  .btn-secondary{ background:#eee; color:#333; }
+  .summary-item{ padding:10px 0; border-bottom:1px solid var(--border); font-size:14px; }
+  .summary-q{ color:var(--gray); font-size:12px; margin-bottom:2px; }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>
+  emailjs.init({ publicKey: "u2K7dzzEvM0bp4pln" });
+</script>
+
+<script>
+const MAXLEN = 400;
+
+const fields = [
+  { id:"training", title:"Was würdest du gerne am Training ändern oder verbessern?" },
+  { id:"physio", title:"Was würdest du gerne an der physiotherapeutischen Betreuung ändern oder verbessern?" },
+  { id:"team", title:"Was würdest du gerne im Team oder im Miteinander ändern oder verbessern?" },
+  { id:"sonstiges", title:"Sonstige Anmerkungen oder Ideen" }
+];
+
+const state = {
+  step: "form", // "form" oder "summary"
+  athletinId: "",
+  datum: new Date().toISOString().slice(0,10),
+  answers: {}
+};
+
+function fullAthletinId(){
+  const raw = (state.athletinId || "").trim().replace(/^ATH-?/i, "").replace(/^HSV[\s-]*/i, "");
+  return raw ? "HSV " + raw : "anonym";
+}
+
+function hasAnyAnswer(){
+  return fields.some(f => (state.answers[f.id] || "").trim().length > 0);
+}
+
+function app(){ return document.getElementById("app"); }
+
+function escapeHtml(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function renderForm(){
+  app().innerHTML = `
+    <header>
+      <h1>Feedback & Verbesserungsvorschläge</h1>
+      <p class="sub">Deine Meinung zählt</p>
+    </header>
+    <main>
+      <p class="intro">Was würdest du gerne anders haben – beim Training, bei der Physio-Betreuung, im Team oder sonst irgendwo? Alle Felder sind freiwillig, aber mindestens eines sollte ausgefüllt sein.</p>
+      <div class="anon-box">🔒 Deine Angaben gehen direkt an Olli. Er leitet Inhalte, wenn nötig, gesammelt und <strong>ohne Namen</strong> als „vom Team" an die zuständigen Verantwortlichen weiter.</div>
+      <div class="field-row">
+        <label>Deine Trikotnummer (freiwillig)</label>
+        <div class="fhint">Nur falls Olli bei Rückfragen wissen soll, von wem es kommt. Wird nie mit Namen weitergegeben.</div>
+        <input type="text" id="f_id" placeholder="z. B. 73 – oder leer lassen" inputmode="numeric" value="${escapeHtml(state.athletinId)}">
+      </div>
+      ${fields.map(f => `
+        <div class="field-row">
+          <label>${f.title}</label>
+          <textarea id="f_${f.id}" maxlength="${MAXLEN}" placeholder="Optional …">${escapeHtml(state.answers[f.id] || "")}</textarea>
+          <div class="charcount" id="cc_${f.id}">${(state.answers[f.id]||"").length} / ${MAXLEN}</div>
+        </div>
+      `).join("")}
+    </main>
+    <footer>
+      <button class="btn btn-primary" id="nextBtn" ${hasAnyAnswer()?"":"disabled"}>Weiter zur Übersicht</button>
+    </footer>
+  `;
+  document.getElementById("f_id").addEventListener("input", e=>{ state.athletinId = e.target.value; });
+  fields.forEach(f=>{
+    const ta = document.getElementById("f_"+f.id);
+    ta.addEventListener("input", e=>{
+      state.answers[f.id] = e.target.value;
+      document.getElementById("cc_"+f.id).textContent = e.target.value.length + " / " + MAXLEN;
+      document.getElementById("nextBtn").disabled = !hasAnyAnswer();
+    });
+  });
+  document.getElementById("nextBtn").addEventListener("click", ()=>{
+    if(!hasAnyAnswer()) return;
+    state.step = "summary";
+    render();
+  });
+}
+
+function buildMachineRecord(){
+  const rec = {
+    datenart: "echtdaten",
+    record_id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ("rid_" + Date.now() + "_" + Math.random().toString(36).slice(2)),
+    athletin_id: fullAthletinId(),
+    erfasst_am: new Date().toISOString(),
+    datum: state.datum,
+    fragebogen_version: "TEAMFEEDBACK-0.1",
+    pruefstatus: "neu"
+  };
+  fields.forEach(f=>{ rec[f.id] = state.answers[f.id] || ""; });
+  return rec;
+}
+
+function buildPlainText(){
+  const lines = [];
+  lines.push("Team-Feedback");
+  lines.push("Datum: " + state.datum);
+  lines.push("Athletinnen-ID: " + fullAthletinId());
+  lines.push("");
+  fields.forEach(f=>{
+    lines.push(f.title + ": " + ((state.answers[f.id]||"").trim() || "keine Angabe"));
+  });
+  lines.push("");
+  lines.push("--- Maschinenlesbar (JSON, für automatische Auswertung, bitte nicht von Hand bearbeiten) ---");
+  lines.push(JSON.stringify(buildMachineRecord()));
+  return lines.join("\n");
+}
+
+function renderSummary(){
+  const plainText = buildPlainText();
+  let rows = `<div class="summary-item"><div class="summary-q">Datum / Kennung</div>${state.datum} · ${fullAthletinId()}</div>`;
+  fields.forEach(f=>{
+    const v = (state.answers[f.id]||"").trim() || "– keine Angabe –";
+    rows += `<div class="summary-item"><div class="summary-q">${f.title}</div>${escapeHtml(v)}</div>`;
+  });
+  app().innerHTML = `
+    <header>
+      <h1>Zusammenfassung</h1>
+      <p class="sub">Bitte kurz prüfen</p>
+    </header>
+    <main>
+      ${rows}
+      <button class="btn btn-primary" id="autoSendBtn" type="button" style="width:100%;margin-top:16px;">Jetzt absenden</button>
+      <p id="sendStatus" style="font-size:13px;font-weight:600;margin-top:8px;min-height:18px;"></p>
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <button class="btn btn-secondary" id="copyBtn" type="button">Text kopieren</button>
+        <button class="btn btn-secondary" id="mailBtn" type="button">Manuell per Mail senden</button>
+      </div>
+      <p id="copyStatus" style="font-size:12px;color:var(--gray);margin-top:8px;"></p>
+      <div class="note-box">Deine Antworten werden direkt und vertraulich an Olli übermittelt.</div>
+    </main>
+    <footer>
+      <button class="btn btn-secondary" id="backBtn">Zurück</button>
+    </footer>
+  `;
+  document.getElementById("backBtn").addEventListener("click", ()=>{ state.step="form"; render(); });
+  document.getElementById("copyBtn").addEventListener("click", async ()=>{
+    let ok = false;
+    try{ await navigator.clipboard.writeText(plainText); ok = true; }
+    catch(e){ ok = false; }
+    document.getElementById("copyStatus").textContent = ok
+      ? "Kopiert! Du kannst den Text jetzt z. B. in eine Notiz oder WhatsApp einfügen."
+      : "Kopieren hat nicht automatisch geklappt.";
+  });
+  document.getElementById("autoSendBtn").addEventListener("click", ()=>{
+    const btn = document.getElementById("autoSendBtn");
+    const statusEl = document.getElementById("sendStatus");
+    const subject = "Team-Feedback – " + fullAthletinId();
+    btn.disabled = true;
+    btn.textContent = "Wird gesendet …";
+    statusEl.style.color = "var(--gray)";
+    statusEl.textContent = "";
+    emailjs.send("service_cx4ksx5", "template_xn5hexf", { subject: subject, message: plainText })
+      .then(()=>{
+        statusEl.style.color = "var(--green)";
+        statusEl.textContent = "✓ Gesendet! Danke für dein Feedback.";
+        btn.textContent = "Erneut senden";
+        btn.disabled = false;
+      })
+      .catch(()=>{
+        statusEl.style.color = "var(--red)";
+        statusEl.textContent = "Senden hat nicht geklappt (z. B. kein Internet). Bitte Text kopieren oder manuell per Mail senden.";
+        btn.textContent = "Jetzt absenden";
+        btn.disabled = false;
+      });
+  });
+  document.getElementById("mailBtn").addEventListener("click", ()=>{
+    const subject = encodeURIComponent("Team-Feedback – " + fullAthletinId());
+    const body = encodeURIComponent(plainText);
+    window.location.href = "mailto:og.hsvlegenden@gmail.com?subject=" + subject + "&body=" + body;
+  });
+}
+
+function render(){
+  if(state.step === "summary") renderSummary();
+  else renderForm();
+}
+
+render();
+</script>
+</body>
+</html>
